@@ -4,6 +4,8 @@ Each release's page on GitHub has its notes and measurements. See [the 1.0.0 rel
 
 ## Unreleased
 
+- Single-Mac GLM on M1-M4 uses one order for prompt windows, chunks and decode (#743). Plain and drafted replies from both earlier window and chunk modes may change once, including image turns. M5, paired-Mac and CUDA GLM keep their existing arithmetic. See [the arithmetic gate](docs/recipes/glm-ordered-metal.md) for qualification and the 40-layer diagnostic's limits.
+
 - Qwen3.5-MoE's prompt sorts its experts' rows in one threadgroup, a thread an expert, with the same order as the serial sort (#1799). Thanks to @BobClawblaw.
 - The lane core takes readout requests for decision prompts, read in pinned 1,024-row pieces, and a batched embedding request no longer hangs on a backend that prefills many prompts at once (#2047). Thanks to @laudney.
 
