@@ -4,6 +4,8 @@ Each release's page on GitHub has its notes and measurements. See [the 1.0.0 rel
 
 ## Unreleased
 
+- Qwen3.8-27B on M1 to M4 now runs its prompts on the decode path's attention arithmetic, so prompt rows equal decode rows and a pass can follow the admitted frame past 128 rows. Replies can differ from 1.2.x for any prompt longer than one token on those chips. M5 and the other head shapes are unchanged (#2089).
+
 - Qwen3.5-MoE's prompt sorts its experts' rows in one threadgroup, a thread an expert, with the same order as the serial sort (#1799). Thanks to @BobClawblaw.
 
 - XPU's dense 27B takes its kernel sizes from one shared `shape.h`, with 8-head prompt attention, and its SPIR-V images stay byte-identical (#1425, thanks @tolewis).
