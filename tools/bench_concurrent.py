@@ -37,6 +37,7 @@ from bench_auth import authorize, read_api_key, redact
 from bench_args import validate_temperatures
 import bench_metrics
 import bench_timing
+import bench_thinking
 
 if sys.version_info < (3, 11):
     sys.exit(f"Python 3.11+ is required (this is {sys.version.split()[0]}); "
@@ -82,7 +83,8 @@ def _stream(base: str, model: str, item: dict, tokens: int, temperature: float, 
     if item["kind"] == "chat":
         url = base + "/v1/chat/completions"
         body["messages"] = [{"role": "user", "content": item["prompt"]}]
-        body["chat_template_kwargs"] = {"enable_thinking": False}
+        if item.get("thinking_switch") is True:
+            body["chat_template_kwargs"] = {"enable_thinking": False}
     else:
         url = base + "/v1/completions"
         body["prompt"] = item["prompt"]
@@ -256,8 +258,11 @@ def main() -> None:
             pool = distinct(args.prompts)
         except (OSError, ValueError) as exc:
             p.error(str(exc))
-    cells = [None] if args.mixed or args.prompts else PROMPTS
+    switch = bench_thinking.discover(args.base, args.model, api_key)
+    pool = bench_thinking.configure(pool, switch)
+    cells = [None] if args.mixed or args.prompts else pool
     report: dict = {"label": args.label, "tokens": args.tokens, "mixed": args.mixed, "cells": []}
+    report["thinking_switch"] = switch
     if args.prompts:
         report["prompts"] = [q["name"] for q in pool]
     for temp in temps:
@@ -266,7 +271,7 @@ def main() -> None:
             if args.prompts:
                 specs = [(pool[i % len(pool)], args.seed + i if temp > 0 else args.seed) for i in range(max(levels))]
             elif args.mixed or item is None:
-                specs = [(PROMPTS[i % 2], args.seed + i // 2) for i in range(max(levels))]
+                specs = [(pool[i % len(pool)], args.seed + i // 2) for i in range(max(levels))]
             else:
                 specs = [(item, args.seed + i if temp > 0 else args.seed) for i in range(max(levels))]
             if args.no_seed:
@@ -313,6 +318,7 @@ def main() -> None:
                     reps.append(rep)
                 name = "distinct" if args.prompts else "mixed" if args.mixed or item is None else item["name"]
                 cell = {"prompt": name, "temperature": temp,
+                        **(bench_thinking.receipt(item) if item is not None else {"thinking": "per request", "thinking_switch": switch}),
                         "streams": n, "failed": sum(r["failed"] for r in reps),
                         "unmeasured": sum(r["unmeasured"] for r in reps),
                         "aggregate_tps": round(statistics.median(r["aggregate_tps"] for r in reps), 1),

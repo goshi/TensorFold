@@ -71,6 +71,23 @@ fn renderRequest(srv: *Server, cx: *Cx, messages: Value, tools: []const Value, t
     return ids;
 }
 
+/// Whether a simple chat's explicit off passes the same renderer/refusal as an actual request, without generation.
+pub fn thinkingSwitch(srv: *Server, a: std.mem.Allocator) std.mem.Allocator.Error!bool {
+    if (!srv.info.text_generation) return false;
+    if (srv.close_id == null or srv.thinking_switch) return true;
+    var cx: Cx = .{ .a = a };
+    const user = try json.newObject(a);
+    try user.put(a, "role", .{ .string = "user" });
+    try user.put(a, "content", .{ .string = "x" });
+    const list = try a.alloc(Value, 1);
+    list[0] = .{ .object = user };
+    _ = renderRequest(srv, &cx, .{ .array = list }, &.{}, false, null, true, true) catch |err| switch (err) {
+        error.OutOfMemory => return error.OutOfMemory,
+        error.Refused => return false,
+    };
+    return true;
+}
+
 const RenderedIds = struct { ids: []u32, closed: bool };
 
 /// The template's ids for `messages`; with image input, a marker the text spells is ordinary text (images.zig).

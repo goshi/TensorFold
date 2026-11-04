@@ -97,7 +97,7 @@ tensorfold-native serve MODEL --allowed-host inference.example --allowed-origin 
 
 | Route | Behavior |
 | --- | --- |
-| `GET /v1/models` | Served model ID and any configured aliases (both servers) |
+| `GET /v1/models` | Served model ID and any configured aliases (both servers); native entries include `capabilities.thinking_switch` |
 | `GET /health` | Liveness, the served model, the queue and live rates; open with keys (see [Health](#health)) |
 | `GET /memory`, `GET /v1/memory` | Native read-only memory snapshot ([memory diagnostics](memory-diagnostics.md)) |
 | `GET /metrics`, `GET /v1/metrics` | Prometheus text: requests, KV occupancy, drafts and latency (both servers) |
@@ -420,6 +420,8 @@ a grammar sent with `tool_choice: "required"` or a named function, and `logprobs
 grammar fails while decoding ends with HTTP 500 (an error event when streaming); the other requests go on.
 
 ## Reasoning
+
+Native `/v1/models` entries and aliases include `capabilities.thinking_switch`. It is true when explicit thinking off is supported for a simple text chat by the existing template switch or generation-prefix closure, or the tokenizer has no thinking-close marker. Discovery uses the same off-render check as requests; each request still validates its own rendered prefix. It is false for a refused probe or a model without text generation. Benchmark clients read this bit once, omit the off field when it is false or unknown, and label that run as the model default rather than thinking off.
 
 On both backends, `reasoning_effort: none` asks the chat template to disable thinking; an explicit off request returns HTTP 400 when the template cannot honor it. Other effort values enable thinking and reach the chat
 template. The server also reads it from `chat_template_kwargs.reasoning_effort`, where vLLM's clients send it; the

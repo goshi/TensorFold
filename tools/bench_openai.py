@@ -19,6 +19,7 @@ from bench_evidence import Evidence
 from bench_auth import authorize, read_api_key, redact
 from bench_args import validate_temperatures
 import bench_metrics
+import bench_thinking
 
 if sys.version_info < (3, 11):
     sys.exit(f"Python 3.11+ is required (this is {sys.version.split()[0]}); "
@@ -27,7 +28,7 @@ if sys.version_info < (3, 11):
 PROMPTS = [
     {"name": "fibonacci-raw", "kind": "completion",
      "prompt": "Write a short Python function that computes the Fibonacci sequence and explain it."},
-    {"name": "gpu-chat-no-think", "kind": "chat",
+    {"name": "gpu-chat", "kind": "chat",
      "prompt": "Explain how matrix multiplication uses a GPU in plain English, then give a small numerical example."},
 ]
 
@@ -43,7 +44,8 @@ def stream(base: str, model: str, item: dict, tokens: int, temperature: float, s
     if item["kind"] == "chat":
         url = base + "/v1/chat/completions"
         body["messages"] = [{"role": "user", "content": item["prompt"]}]
-        body["chat_template_kwargs"] = {"enable_thinking": False}
+        if item.get("thinking_switch") is True:
+            body["chat_template_kwargs"] = {"enable_thinking": False}
     else:
         url = base + "/v1/completions"
         body["prompt"] = item["prompt"]
@@ -121,9 +123,10 @@ def main() -> None:
         p.error("--reps must be greater than 0")
     api_key = read_api_key(p, args.api_key_env)
     validate_temperatures(p, args.temperatures)
+    prompts = bench_thinking.configure(PROMPTS, bench_thinking.discover(args.base, args.model, api_key))
     results = []
     for temp in [float(t) for t in args.temperatures.split(",")]:
-        for item in PROMPTS:
+        for item in prompts:
             seeds = [None] * args.reps if args.seed_from_prompt else [1234 + i for i in range(args.reps)]
             try:
                 stream(args.base, args.model, item, args.tokens, temp, seeds[0], api_key=api_key)  # warm-up
@@ -132,7 +135,7 @@ def main() -> None:
                 p.exit(1, f"benchmark request failed: {type(exc).__name__}\n")
             tps = [r["decode_tps"] for r in runs if r["decode_tps"]]
             ttfts = [r["ttft_s"] for r in runs if r["ttft_s"] is not None]
-            row = {"label": args.label, "prompt": item["name"], "temperature": temp, "tokens": args.tokens,
+            row = {"label": args.label, "prompt": item["name"], "temperature": temp, "tokens": args.tokens, **bench_thinking.receipt(item),
                    "decode_tps_median": statistics.median(tps) if tps else None, "decode_tps_all": [round(x, 2) for x in tps],
                    "ttft_s_median": statistics.median(ttfts) if ttfts else None,
                    **{k + "_median": median(r[k] for r in runs) for k in METRICS},
@@ -140,7 +143,7 @@ def main() -> None:
                                 "complete", "token_sha", "output_sha256")} for r in runs],
                    "sample": redact(runs[0]["text"], api_key)[:160]}
             row = redact(row, api_key)
-            shown = ("label", "prompt", "temperature", "decode_tps_median", "decode_tps_all", "ttft_s_median",
+            shown = ("label", "prompt", "temperature", "thinking", "thinking_off_requested", "decode_tps_median", "decode_tps_all", "ttft_s_median",
                      *(k + "_median" for k in METRICS))
             print(json.dumps({k: row[k] for k in shown}), flush=True)
             results.append(row)

@@ -61,6 +61,32 @@ const Reply = struct {
     }
 };
 
+const Wire = struct {
+    a: Allocator,
+    bytes: std.ArrayList(u8) = .empty,
+    fn write(ctx: *anyopaque, bytes: []const u8) error{Closed}!void {
+        const w: *Wire = @ptrCast(@alignCast(ctx));
+        w.bytes.appendSlice(w.a, bytes) catch return error.Closed;
+    }
+};
+
+fn capability(srv: *Server, a: Allocator) !bool {
+    var wire: Wire = .{ .a = a };
+    var c: Conn = .{ .fd = -1, .peer = "", .buf = &.{}, .gpa = a, .version = "HTTP/1.1", .method = "GET", .write_hooks = .{ .ctx = &wire, .write = Wire.write } };
+    try @import("status_routes.zig").models(srv, &c, a);
+    const at = std.mem.indexOf(u8, wire.bytes.items, "\r\n\r\n") orelse return error.MissingHttpHead;
+    const body = (try json.parse(a, wire.bytes.items[at + 4 ..])).ok;
+    var found: ?bool = null;
+    for (body.get("data").?.array) |entry| {
+        const caps = entry.get("capabilities") orelse return error.MissingThinkingCapability;
+        const bit = caps.get("thinking_switch") orelse return error.MissingThinkingCapability;
+        try std.testing.expect(bit == .bool);
+        if (found) |previous| try std.testing.expectEqual(previous, bit.bool);
+        found = bit.bool;
+    }
+    return found orelse error.MissingModel;
+}
+
 const plain = "H";
 const dangling = "H{% if add_generation_prompt %}<think>{% endif %}";
 const closed = "H{% if add_generation_prompt %}<think></think>{% endif %}";
@@ -84,11 +110,14 @@ fn check(template: []const u8, close_token: bool, server_thinking: bool, extra: 
     var script: Script = .{};
     const srv = try Server.init(t.allocator, t.io, script.engine(), text.text(), .{
         .served_name = "m",
-        .model_ids = &.{"m"},
+        .model_ids = &.{ "m", "alias" },
         .enable_thinking = server_thinking,
         .use_drafts = false,
     }, null);
     defer srv.deinit();
+    const can_off = try capability(srv, a);
+    try t.expect(!script.seen);
+    if (code == 400) try t.expect(!can_off) else if (std.mem.eql(u8, extra, off)) try t.expect(can_off);
     const body = (try json.parse(a, try std.fmt.allocPrint(a, "{{\"model\":\"m\",\"messages\":[{{\"role\":\"user\",\"content\":\"H\"}}],\"max_tokens\":2,\"return_token_ids\":true{s}}}", .{extra}))).ok;
     var conn: Conn = .{ .fd = -1, .peer = "", .buf = &.{}, .gpa = a };
     var response: Reply = .{ .a = a };

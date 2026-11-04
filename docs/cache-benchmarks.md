@@ -113,3 +113,5 @@ python3 -m unittest discover -s tools/tests -p 'test_bench*.py' -v
 Tests exercise usage validation, missing hashes, errors, incomplete/empty/tool-call-only SSE, Unicode chunking,
 concurrent request ordering, assertion failures, receipt allowlisting, and a real loopback HTTP server.
 They do not load weights or substitute for checkpoint/device performance and exactness gates.
+
+The maintained decode clients query `/v1/models` once before requests. They send explicit thinking off only when the selected model advertises `capabilities.thinking_switch: true`. Each chat cell records `thinking`, `thinking_off_requested` and `thinking_switch`; false or missing discovery uses the model default and never labels it off. Raw completions do not receive a thinking field.
