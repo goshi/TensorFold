@@ -176,6 +176,13 @@ context window before the first is scored, so a refused request costs no GPU wor
 `max_length` above it) returns HTTP 400 with `code` `context_length_exceeded`. An image or video part returns HTTP
 400. Errors use the server's envelope, as on every route: `{"error": {"message", "type"}}`.
 
+## Queue phase metrics
+
+With TENSORFOLD_PHASE_METRICS=1, native /metrics also exports tensorfold:request_queue_seconds and
+its request_queue_time_seconds alias, for measured waits from request submission to admission.
+Both use the fixed request-time histogram edges and have no request labels. An unset flag keeps these families
+absent and skips the queue observation; existing request metrics remain available. This option does not change replies.
+
 ## Living Weights
 
 With `--slide`, the native server learns facts into the served weights. [Living Weights](living-weights.md) explains
