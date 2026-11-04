@@ -54,6 +54,8 @@ pub fn addTo(
 
 /// Tool parsing and actual chat visibility checks share the aggregate's real modules.
 pub fn toolHostTests(b: *std.Build, parser: *std.Build.Module, server: *std.Build.Module, all: *std.Build.Step) void {
+    const offers = b.addRunArtifact(b.addTest(.{ .root_module = server, .filters = &.{ "model discovery", "engine capability reader:" } }));
+    b.step("test-model-capabilities-host", "Per-model offers agree with the flags used for request refusals").dependOn(&offers.step);
     const drafts = b.addRunArtifact(b.addTest(.{ .root_module = server, .filters = &.{"draft sources:"} }));
     b.step("test-draft-line-host", "Serving line draft provenance without devices").dependOn(&drafts.step);
     all.dependOn(&drafts.step);
