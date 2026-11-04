@@ -3,6 +3,7 @@ const std = @import("std");
 
 pub fn steps(b: *std.Build, cuda: *std.Build.Module, glm: *std.Build.Module, mods: anytype, step: *std.Build.Step) void {
     const host = b.graph.host;
+    b.step("test-kda-host", "Shared KDA launch ABI against its frozen predecessor, without CUDA execution").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = cuda, .filters = &.{"shared KDA:"} })).step);
     const startup = b.createModule(.{ .root_source_file = b.path("zig/src/families/glm/cuda_start_test.zig"), .target = host, .optimize = .debug });
     const startup_run = b.addRunArtifact(b.addTest(.{ .root_module = startup }));
     b.step("test-glm-startup-host", "Page refusals propagate through rank liveness before engine construction").dependOn(&startup_run.step);
