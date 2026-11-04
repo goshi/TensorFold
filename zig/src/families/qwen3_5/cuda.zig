@@ -71,3 +71,7 @@ test {
     _ = train;
     _ = @import("cuda_read_cost_test.zig");
 }
+
+test {
+    _ = @import("cuda_request_starts_test.zig");
+}
